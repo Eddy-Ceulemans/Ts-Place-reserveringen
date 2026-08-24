@@ -384,7 +384,7 @@ export default function BiljartReserveringen() {
                       color: table.textOn,
                     }}
                   >
-                    {table.id === "wit" ? "" : "8"}
+                    {""}
                   </span>
                   <div>
                     <div className="table-label" style={styles.tableLabel}>
