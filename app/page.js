@@ -97,6 +97,11 @@ export default function BiljartReserveringen() {
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
   const [activeReservation, setActiveReservation] = useState(null); // {dateKey, tableId, slots, endsAt}
+  const [opponentInput, setOpponentInput] = useState(""); // at booking time
+  const [opponentLocked, setOpponentLocked] = useState(false); // at booking time
+  const [opponentTarget, setOpponentTarget] = useState(null); // {tableId, slot, row, mode: 'claim' | 'manage'}
+  const [opponentEditName, setOpponentEditName] = useState("");
+  const [opponentEditLocked, setOpponentEditLocked] = useState(false);
 
   const maxSelect = competition === "mij" ? DEFAULT_MAX_SELECT : COMPETITION_MAX_SELECT;
   const isPersonalMode = competition === "mij";
@@ -270,6 +275,7 @@ export default function BiljartReserveringen() {
       return;
     }
 
+    const trimmedOpponent = opponentInput.trim();
     const rows = selection.map(({ tableId, slot }) => ({
       date: dateKey,
       table_id: tableId,
@@ -277,6 +283,8 @@ export default function BiljartReserveringen() {
       name: trimmed,
       owner_token: deviceToken,
       competition,
+      opponent_name: trimmedOpponent || null,
+      opponent_locked: opponentLocked,
     }));
 
     const { error: err } = await supabase.from("reservations").insert(rows);
@@ -290,6 +298,8 @@ export default function BiljartReserveringen() {
 
     setSelection([]);
     setNameInput("");
+    setOpponentInput("");
+    setOpponentLocked(false);
     setError("");
     setToast(selection.length > 1 ? "Uren gereserveerd" : "Gereserveerd");
     loadReservations();
@@ -311,6 +321,68 @@ export default function BiljartReserveringen() {
     setToast("Reservering geannuleerd");
     loadReservations();
     refreshActiveReservation();
+  }
+
+  function isOpponentOwner(row) {
+    return !!(row && deviceToken && row.owner_token === deviceToken);
+  }
+
+  // Anyone (not just the reserver) may add their name in the open opponent
+  // slot -- but only while it's unlocked and still empty. Once it's locked
+  // or filled in, only the reserver ("Owner") can change it further.
+  function isOpponentOpenForAnyone(row) {
+    return !!row && !row.opponent_locked && !row.opponent_name;
+  }
+
+  function openOpponentSlot(tableId, slot, row) {
+    if (!row) return;
+    const owner = isOpponentOwner(row);
+    if (!owner && !isOpponentOpenForAnyone(row)) {
+      // Locked/filled and not yours: just show a read-only view.
+      setOpponentTarget({ tableId, slot, row, mode: "readonly" });
+      return;
+    }
+    setOpponentEditName(row.opponent_name || "");
+    setOpponentEditLocked(row.opponent_locked || false);
+    setOpponentTarget({ tableId, slot, row, mode: owner ? "manage" : "claim" });
+  }
+
+  async function saveOpponent() {
+    const { row, mode } = opponentTarget;
+    const trimmed = opponentEditName.trim();
+    const patch =
+      mode === "manage"
+        ? { opponent_name: trimmed || null, opponent_locked: opponentEditLocked }
+        : { opponent_name: trimmed || null };
+    if (mode === "claim" && !trimmed) {
+      setToast("Vul een naam in.");
+      return;
+    }
+    const { error: err } = await supabase.from("reservations").update(patch).eq("id", row.id);
+    setOpponentTarget(null);
+    if (err) {
+      console.error(err);
+      setToast("Opslaan tegenstander mislukt, probeer opnieuw.");
+      return;
+    }
+    setToast("Tegenstander bijgewerkt");
+    loadReservations();
+  }
+
+  async function clearOpponent() {
+    const { row } = opponentTarget;
+    const { error: err } = await supabase
+      .from("reservations")
+      .update({ opponent_name: null, opponent_locked: false })
+      .eq("id", row.id);
+    setOpponentTarget(null);
+    if (err) {
+      console.error(err);
+      setToast("Wissen mislukt, probeer opnieuw.");
+      return;
+    }
+    setToast("Tegenstandersveld geopend");
+    loadReservations();
   }
 
   const selectedTableId = selection[0]?.tableId;
@@ -406,41 +478,58 @@ export default function BiljartReserveringen() {
                     const blockedByActive = !booking && !selected && isPersonalMode && isActiveReservationOngoing();
                     const disabled = past || disableAsFull || blockedByActive;
                     return (
-                      <button
-                        key={slot}
-                        className="slot-row"
-                        onClick={() => toggleSlot(table.id, slot)}
-                        disabled={disabled}
-                        style={{
-                          ...styles.slotRow,
-                          ...(booking ? styles.slotRowBooked : {}),
-                          ...(selected ? styles.slotRowSelected : {}),
-                          ...(disabled ? styles.slotRowPast : {}),
-                        }}
-                      >
-                        <span className="slot-time" style={styles.slotTime}>
-                          {slot}
-                        </span>
-                        <span className="slot-status" style={styles.slotStatus}>
-                          {past ? "verstreken" : booking ? booking.name : selected ? "geselecteerd" : "vrij"}
-                        </span>
-                        <span
-                          className="slot-dot"
+                      <div key={slot} style={styles.slotGroup}>
+                        <button
+                          className="slot-row"
+                          onClick={() => toggleSlot(table.id, slot)}
+                          disabled={disabled}
                           style={{
-                            ...styles.dot,
-                            background: past
-                              ? "#9a948324"
-                              : booking
-                              ? table.ball
-                              : selected
-                              ? "#C9A227"
-                              : "transparent",
-                            border: `1.5px solid ${
-                              past ? "#9a9483" : booking ? table.ballRing : selected ? "#C9A227" : "#9a9483"
-                            }`,
+                            ...styles.slotRow,
+                            ...(booking ? styles.slotRowBooked : {}),
+                            ...(selected ? styles.slotRowSelected : {}),
+                            ...(disabled ? styles.slotRowPast : {}),
                           }}
-                        />
-                      </button>
+                        >
+                          <span className="slot-time" style={styles.slotTime}>
+                            {slot}
+                          </span>
+                          <span className="slot-status" style={styles.slotStatus}>
+                            {past ? "verstreken" : booking ? booking.name : selected ? "geselecteerd" : "vrij"}
+                          </span>
+                          <span
+                            className="slot-dot"
+                            style={{
+                              ...styles.dot,
+                              background: past
+                                ? "#9a948324"
+                                : booking
+                                ? table.ball
+                                : selected
+                                ? "#C9A227"
+                                : "transparent",
+                              border: `1.5px solid ${
+                                past ? "#9a9483" : booking ? table.ballRing : selected ? "#C9A227" : "#9a9483"
+                              }`,
+                            }}
+                          />
+                        </button>
+                        {booking && !past && (
+                          <button
+                            className="opponent-row"
+                            onClick={() => openOpponentSlot(table.id, slot, booking)}
+                            style={styles.opponentRow}
+                          >
+                            <span style={styles.opponentLabel}>vs</span>
+                            <span style={styles.opponentValue}>
+                              {booking.opponent_name
+                                ? booking.opponent_name
+                                : booking.opponent_locked
+                                ? "speelt alleen"
+                                : "vrij — voeg tegenstander toe"}
+                            </span>
+                          </button>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
@@ -473,6 +562,28 @@ export default function BiljartReserveringen() {
               Reserveer
             </button>
           </div>
+          <div style={styles.opponentBookingRow}>
+            <input
+              style={styles.inputDark}
+              placeholder="Naam tegenstander (optioneel)"
+              value={opponentInput}
+              onChange={(e) => setOpponentInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && confirmReservation()}
+            />
+            <label style={styles.opponentCheckboxLabel}>
+              <input
+                type="checkbox"
+                checked={opponentLocked}
+                onChange={(e) => setOpponentLocked(e.target.checked)}
+              />
+              Vergrendelen
+            </label>
+          </div>
+          <div style={styles.opponentHint}>
+            {opponentLocked
+              ? "Vergrendeld: enkel jij kan dit later nog aanpassen. Leeg = je speelt alleen."
+              : "Niet vergrendeld: eender wie kan later zelf zijn naam als tegenstander invullen."}
+          </div>
           {error && <div style={styles.errorTextLight}>{error}</div>}
         </div>
       )}
@@ -494,6 +605,85 @@ export default function BiljartReserveringen() {
                 Annuleer reservering
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {opponentTarget && (
+        <div style={styles.overlay} onClick={() => setOpponentTarget(null)}>
+          <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
+            <div style={styles.modalEyebrow}>
+              {TABLES.find((t) => t.id === opponentTarget.tableId).label} · {opponentTarget.slot} · vs
+            </div>
+
+            {opponentTarget.mode === "readonly" && (
+              <>
+                <h2 style={styles.modalTitle}>
+                  {opponentTarget.row.opponent_name
+                    ? `Tegenstander: ${opponentTarget.row.opponent_name}`
+                    : "Speelt alleen"}
+                </h2>
+                <p style={styles.readOnlyNote}>
+                  Dit tegenstandersveld is vergrendeld door de reservering zelf — enkel die persoon kan het
+                  wijzigen.
+                </p>
+                <div style={styles.modalActions}>
+                  <button style={styles.ghostBtn} onClick={() => setOpponentTarget(null)}>
+                    Sluiten
+                  </button>
+                </div>
+              </>
+            )}
+
+            {opponentTarget.mode === "claim" && (
+              <>
+                <h2 style={styles.modalTitle}>Speel mee als tegenstander</h2>
+                <input
+                  style={styles.input}
+                  placeholder="Jouw naam"
+                  value={opponentEditName}
+                  onChange={(e) => setOpponentEditName(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && saveOpponent()}
+                />
+                <div style={styles.modalActions}>
+                  <button style={styles.ghostBtn} onClick={() => setOpponentTarget(null)}>
+                    Sluiten
+                  </button>
+                  <button style={styles.primaryBtn} onClick={saveOpponent}>
+                    Bevestigen
+                  </button>
+                </div>
+              </>
+            )}
+
+            {opponentTarget.mode === "manage" && (
+              <>
+                <h2 style={styles.modalTitle}>Tegenstander beheren</h2>
+                <input
+                  style={styles.input}
+                  placeholder="Naam tegenstander (leeg = alleen spelen)"
+                  value={opponentEditName}
+                  onChange={(e) => setOpponentEditName(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && saveOpponent()}
+                />
+                <label style={styles.opponentCheckboxLabelDark}>
+                  <input
+                    type="checkbox"
+                    checked={opponentEditLocked}
+                    onChange={(e) => setOpponentEditLocked(e.target.checked)}
+                  />
+                  Vergrendelen (niemand anders kan dan zijn naam invullen)
+                </label>
+                <div style={styles.modalActions}>
+                  <button style={styles.ghostBtn} onClick={clearOpponent}>
+                    Wissen &amp; openen
+                  </button>
+                  <button style={styles.primaryBtn} onClick={saveOpponent}>
+                    Opslaan
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -525,6 +715,7 @@ const responsiveCss = `
   .felt-table .slot-time { font-size: 11.5px !important; width: 34px !important; }
   .felt-table .slot-status { font-size: 10.5px !important; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .felt-table .slot-dot { width: 10px !important; height: 10px !important; }
+  .felt-table .opponent-row { padding: 4px 8px 4px 20px !important; font-size: 10.5px !important; }
 }
 @media (max-width: 480px) {
   .tables-grid { gap: 7px; }
@@ -670,6 +861,24 @@ const styles = {
   tableLabel: { fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 20 },
   tableSub: { fontSize: 12.5, color: "#a9c2b3", letterSpacing: "0.03em" },
   slotList: { display: "flex", flexDirection: "column", gap: 7 },
+  slotGroup: { display: "flex", flexDirection: "column", gap: 2 },
+  opponentRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    width: "100%",
+    padding: "5px 12px 5px 26px",
+    borderRadius: 7,
+    border: "1px dashed rgba(245,241,232,0.18)",
+    background: "rgba(0,0,0,0.1)",
+    color: "#c9d6cf",
+    cursor: "pointer",
+    fontFamily: "'Inter', sans-serif",
+    fontSize: 12,
+    textAlign: "left",
+  },
+  opponentLabel: { fontStyle: "italic", opacity: 0.7 },
+  opponentValue: { flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   slotRow: {
     display: "flex",
     alignItems: "center",
@@ -737,6 +946,24 @@ const styles = {
     outline: "none",
   },
   errorTextLight: { color: "#f3b4b4", fontSize: 13 },
+  opponentBookingRow: {
+    display: "flex",
+    gap: 10,
+    alignItems: "center",
+  },
+  opponentCheckboxLabel: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    fontSize: 12.5,
+    color: "#e4c766",
+    whiteSpace: "nowrap",
+  },
+  opponentHint: {
+    fontSize: 11.5,
+    color: "#a9c2b3",
+    lineHeight: 1.4,
+  },
   selectionText: { fontSize: 13.5, color: "#F5F1E8" },
   ghostBtnDark: {
     padding: "9px 16px",
@@ -777,6 +1004,26 @@ const styles = {
     marginBottom: 6,
   },
   modalTitle: { fontFamily: "'Fraunces', serif", fontSize: 21, fontWeight: 600, margin: "0 0 16px" },
+  input: {
+    width: "100%",
+    boxSizing: "border-box",
+    padding: "11px 13px",
+    borderRadius: 8,
+    border: "1.5px solid #d9d2c2",
+    fontSize: 15,
+    fontFamily: "'Inter', sans-serif",
+    outline: "none",
+    marginBottom: 12,
+  },
+  readOnlyNote: { fontSize: 13.5, color: "#6b6455", margin: "0 0 6px", lineHeight: 1.5 },
+  opponentCheckboxLabelDark: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    fontSize: 13,
+    color: "#4a4335",
+    marginTop: 4,
+  },
   modalActions: { display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 },
   ghostBtn: {
     padding: "9px 16px",
