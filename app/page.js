@@ -194,7 +194,7 @@ export default function BiljartReserveringen() {
 
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(() => setToast(""), 2400);
+    const t = setTimeout(() => setToast(""), 8000);
     return () => clearTimeout(t);
   }, [toast]);
 
@@ -287,12 +287,19 @@ export default function BiljartReserveringen() {
       opponent_locked: opponentLocked,
     }));
 
+    if (!deviceToken) {
+      // Extremely rare, but if the browser blocked/failed localStorage this
+      // would otherwise fail silently as a generic insert error below.
+      setToast("Fout: geen toestel-ID beschikbaar (localStorage geblokkeerd?). Herlaad de pagina.");
+      return;
+    }
+
     const { error: err } = await supabase.from("reservations").insert(rows);
     if (err) {
       console.error(err);
-      // Most likely cause: someone else just took one of these slots
-      // (unique constraint), or a connection hiccup.
-      setToast("Opslaan mislukt — mogelijk is een van de uren net bezet. Ververs en probeer opnieuw.");
+      // Show the real Supabase error text so we can diagnose without needing
+      // devtools access (e.g. not possible on some mobile browsers).
+      setToast(`Opslaan mislukt: ${err.message || err.code || "onbekende fout"}`);
       return;
     }
 
