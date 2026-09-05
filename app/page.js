@@ -30,7 +30,6 @@ async function restWrite(method, path, body, attempt = 1) {
         apikey: key,
         Authorization: `Bearer ${key}`,
         "Content-Type": "application/json",
-        Prefer: "return=minimal",
       },
       body: body ? JSON.stringify(body) : undefined,
     });
