@@ -9,19 +9,38 @@ import { supabase } from "../lib/supabaseClient";
 // through the same client work fine -- a plain fetch() with explicit
 // headers avoids whatever supabase-js is doing that triggers it. Reads
 // still use supabase-js (loadReservations) since those already work.
-async function restWrite(method, path, body) {
+//
+// This also retries automatically on a network-level failure (as opposed
+// to a normal HTTP error response) -- there's a known iOS 18 Safari/WebKit
+// bug where fetch() can fail with exactly "TypeError: Load failed" when
+// fired shortly after the page becomes visible again (e.g. switching back
+// from another app), and a short-delayed retry reliably succeeds.
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function restWrite(method, path, body, attempt = 1) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const res = await fetch(`${url}/rest/v1/${path}`, {
-    method,
-    headers: {
-      apikey: key,
-      Authorization: `Bearer ${key}`,
-      "Content-Type": "application/json",
-      Prefer: "return=minimal",
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  let res;
+  try {
+    res = await fetch(`${url}/rest/v1/${path}`, {
+      method,
+      headers: {
+        apikey: key,
+        Authorization: `Bearer ${key}`,
+        "Content-Type": "application/json",
+        Prefer: "return=minimal",
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch (networkErr) {
+    if (attempt < 3) {
+      await wait(400 * attempt);
+      return restWrite(method, path, body, attempt + 1);
+    }
+    throw new Error(`Netwerkfout na ${attempt} pogingen: ${networkErr.message}`);
+  }
   if (!res.ok) {
     let message = `HTTP ${res.status}`;
     try {
