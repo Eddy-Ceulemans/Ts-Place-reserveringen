@@ -64,6 +64,27 @@ export default function TestPage() {
         >
           Test 3: POST naar Supabase zelf
         </button>
+        <button
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            setResult("Bezig met testen: POST via eigen API-route...");
+            try {
+              const res = await fetch("/api/reservations", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ rows: [] }),
+              });
+              setResult(`✅ POST via eigen API-route: gelukt (status ${res.status})`);
+            } catch (err) {
+              setResult(`❌ POST via eigen API-route: mislukt — ${err.message}`);
+            }
+            setBusy(false);
+          }}
+          style={{ padding: 12, fontSize: 15 }}
+        >
+          Test 4: POST via onze eigen API-route
+        </button>
       </div>
       <p style={{ marginTop: 20, padding: 12, background: "#f0f0f0", borderRadius: 8, fontSize: 14 }}>
         {result || "Resultaat verschijnt hier..."}

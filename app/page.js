@@ -3,54 +3,48 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { supabase } from "../lib/supabaseClient";
 
-// Writes (insert/update/delete) go through this instead of the supabase-js
-// client. On some iOS Safari/WebKit devices, writes made through the
-// supabase-js client fail with "TypeError: Load failed" even though reads
-// through the same client work fine -- a plain fetch() with explicit
-// headers avoids whatever supabase-js is doing that triggers it. Reads
-// still use supabase-js (loadReservations) since those already work.
-//
-// This also retries automatically on a network-level failure (as opposed
-// to a normal HTTP error response) -- there's a known iOS 18 Safari/WebKit
-// bug where fetch() can fail with exactly "TypeError: Load failed" when
-// fired shortly after the page becomes visible again (e.g. switching back
-// from another app), and a short-delayed retry reliably succeeds.
-function wait(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+// Writes (insert/update/delete) go through our OWN API route
+// (/api/reservations) instead of talking to Supabase directly from the
+// browser. On some iOS Safari/WebKit devices, direct browser writes to
+// Supabase fail with "TypeError: Load failed" even though reads work fine
+// and the same device can POST to other external sites without issue --
+// routing through our own same-origin API avoids whatever is special
+// about a mobile-Safari-to-Supabase POST specifically. Reads still use
+// supabase-js directly (loadReservations), since those already work fine.
+async function apiInsert(rows) {
+  const res = await fetch("/api/reservations", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ rows }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || `HTTP ${res.status}`);
+  }
 }
 
-async function restWrite(method, path, body, attempt = 1) {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  let res;
-  try {
-    res = await fetch(`${url}/rest/v1/${path}`, {
-      method,
-      headers: {
-        apikey: key,
-        Authorization: `Bearer ${key}`,
-        "Content-Type": "application/json",
-      },
-      body: body ? JSON.stringify(body) : undefined,
-    });
-  } catch (networkErr) {
-    if (attempt < 3) {
-      await wait(400 * attempt);
-      return restWrite(method, path, body, attempt + 1);
-    }
-    throw new Error(`Netwerkfout na ${attempt} pogingen: ${networkErr.message}`);
-  }
+async function apiUpdate(id, patch) {
+  const res = await fetch("/api/reservations", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, patch }),
+  });
   if (!res.ok) {
-    let message = `HTTP ${res.status}`;
-    try {
-      const data = await res.json();
-      message = data.message || data.error || message;
-    } catch (e) {
-      // response wasn't JSON, keep the generic status message
-    }
-    throw new Error(message);
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || `HTTP ${res.status}`);
   }
-  return true;
+}
+
+async function apiDelete(id) {
+  const res = await fetch("/api/reservations", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || `HTTP ${res.status}`);
+  }
 }
 
 const TABLES = [
@@ -345,7 +339,7 @@ export default function BiljartReserveringen() {
     }
 
     try {
-      await restWrite("POST", "reservations", rows);
+      await apiInsert(rows);
     } catch (err) {
       console.error(err);
       // Show the real error text so we can diagnose without needing
@@ -371,7 +365,7 @@ export default function BiljartReserveringen() {
     if (!row) return;
 
     try {
-      await restWrite("DELETE", `reservations?id=eq.${row.id}`);
+      await apiDelete(row.id);
     } catch (err) {
       console.error(err);
       setToast(`Annuleren mislukt: ${err.message || "onbekende fout"}`);
@@ -419,7 +413,7 @@ export default function BiljartReserveringen() {
     }
     setOpponentTarget(null);
     try {
-      await restWrite("PATCH", `reservations?id=eq.${row.id}`, patch);
+      await apiUpdate(row.id, patch);
     } catch (err) {
       console.error(err);
       setToast(`Opslaan tegenstander mislukt: ${err.message || "onbekende fout"}`);
@@ -433,7 +427,7 @@ export default function BiljartReserveringen() {
     const { row } = opponentTarget;
     setOpponentTarget(null);
     try {
-      await restWrite("PATCH", `reservations?id=eq.${row.id}`, { opponent_name: null, opponent_locked: false });
+      await apiUpdate(row.id, { opponent_name: null, opponent_locked: false });
     } catch (err) {
       console.error(err);
       setToast(`Wissen mislukt: ${err.message || "onbekende fout"}`);
