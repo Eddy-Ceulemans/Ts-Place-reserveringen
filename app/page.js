@@ -3,6 +3,38 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { supabase } from "../lib/supabaseClient";
 
+// Writes (insert/update/delete) go through this instead of the supabase-js
+// client. On some iOS Safari/WebKit devices, writes made through the
+// supabase-js client fail with "TypeError: Load failed" even though reads
+// through the same client work fine -- a plain fetch() with explicit
+// headers avoids whatever supabase-js is doing that triggers it. Reads
+// still use supabase-js (loadReservations) since those already work.
+async function restWrite(method, path, body) {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const res = await fetch(`${url}/rest/v1/${path}`, {
+    method,
+    headers: {
+      apikey: key,
+      Authorization: `Bearer ${key}`,
+      "Content-Type": "application/json",
+      Prefer: "return=minimal",
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) {
+    let message = `HTTP ${res.status}`;
+    try {
+      const data = await res.json();
+      message = data.message || data.error || message;
+    } catch (e) {
+      // response wasn't JSON, keep the generic status message
+    }
+    throw new Error(message);
+  }
+  return true;
+}
+
 const TABLES = [
   { id: "wit", label: "Wit", sub: "Tafel 1", ball: "#F5F1E8", ballRing: "#D9D2C2", textOn: "#1a1a1a" },
   { id: "zwart", label: "Zwart", sub: "Tafel 2", ball: "#1a1a1a", ballRing: "#3a3a3a", textOn: "#F5F1E8" },
@@ -141,18 +173,7 @@ export default function BiljartReserveringen() {
 
   // Live updates: refetch whenever any change happens for this date, from
   // any browser -- this is what makes the board "shared" in real time.
-  //
-  // TEMPORARILY DISABLED for diagnosis: on some iOS Safari/WebKit devices,
-  // an open Realtime WebSocket connection appears to conflict with
-  // subsequent fetch() writes to the same host, causing inserts/updates to
-  // fail with "TypeError: Load failed" even though reads work fine. If
-  // re-enabling this fixes reads-but-not-writes and disabling it fixes
-  // writes, that confirms the cause -- ask Claude for the permanent fix
-  // once confirmed (e.g. polling instead of a persistent socket, or only
-  // subscribing after any pending write finishes).
   useEffect(() => {
-    return; // eslint-disable-line no-unreachable
-    // eslint-disable-next-line no-unreachable
     const channel = supabase
       .channel(`reservations-${dateKey}`)
       .on(
@@ -305,12 +326,13 @@ export default function BiljartReserveringen() {
       return;
     }
 
-    const { error: err } = await supabase.from("reservations").insert(rows);
-    if (err) {
+    try {
+      await restWrite("POST", "reservations", rows);
+    } catch (err) {
       console.error(err);
-      // Show the real Supabase error text so we can diagnose without needing
+      // Show the real error text so we can diagnose without needing
       // devtools access (e.g. not possible on some mobile browsers).
-      setToast(`Opslaan mislukt: ${err.message || err.code || "onbekende fout"}`);
+      setToast(`Opslaan mislukt: ${err.message || "onbekende fout"}`);
       return;
     }
 
@@ -330,10 +352,11 @@ export default function BiljartReserveringen() {
     setCancelTarget(null);
     if (!row) return;
 
-    const { error: err } = await supabase.from("reservations").delete().eq("id", row.id);
-    if (err) {
+    try {
+      await restWrite("DELETE", `reservations?id=eq.${row.id}`);
+    } catch (err) {
       console.error(err);
-      setToast("Annuleren mislukt, probeer opnieuw.");
+      setToast(`Annuleren mislukt: ${err.message || "onbekende fout"}`);
       return;
     }
     setToast("Reservering geannuleerd");
@@ -376,11 +399,12 @@ export default function BiljartReserveringen() {
       setToast("Vul een naam in.");
       return;
     }
-    const { error: err } = await supabase.from("reservations").update(patch).eq("id", row.id);
     setOpponentTarget(null);
-    if (err) {
+    try {
+      await restWrite("PATCH", `reservations?id=eq.${row.id}`, patch);
+    } catch (err) {
       console.error(err);
-      setToast("Opslaan tegenstander mislukt, probeer opnieuw.");
+      setToast(`Opslaan tegenstander mislukt: ${err.message || "onbekende fout"}`);
       return;
     }
     setToast("Tegenstander bijgewerkt");
@@ -389,14 +413,12 @@ export default function BiljartReserveringen() {
 
   async function clearOpponent() {
     const { row } = opponentTarget;
-    const { error: err } = await supabase
-      .from("reservations")
-      .update({ opponent_name: null, opponent_locked: false })
-      .eq("id", row.id);
     setOpponentTarget(null);
-    if (err) {
+    try {
+      await restWrite("PATCH", `reservations?id=eq.${row.id}`, { opponent_name: null, opponent_locked: false });
+    } catch (err) {
       console.error(err);
-      setToast("Wissen mislukt, probeer opnieuw.");
+      setToast(`Wissen mislukt: ${err.message || "onbekende fout"}`);
       return;
     }
     setToast("Tegenstandersveld geopend");
