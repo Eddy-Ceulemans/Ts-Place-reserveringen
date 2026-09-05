@@ -1,6 +1,20 @@
 export const metadata = {
-  title: "Café T's Place · Biljartreserveringen",
+  title: "Café T's Place - PDB · Biljartreserveringen",
   description: "Reserveer de Wit of Zwart biljarttafel bij Café T's Place.",
+  manifest: "/manifest.json",
+  themeColor: "#1B4332",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "T's Place",
+  },
+  icons: {
+    icon: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: "/apple-touch-icon.png",
+  },
 };
 
 export default function RootLayout({ children }) {
