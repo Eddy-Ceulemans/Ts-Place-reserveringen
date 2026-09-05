@@ -141,7 +141,18 @@ export default function BiljartReserveringen() {
 
   // Live updates: refetch whenever any change happens for this date, from
   // any browser -- this is what makes the board "shared" in real time.
+  //
+  // TEMPORARILY DISABLED for diagnosis: on some iOS Safari/WebKit devices,
+  // an open Realtime WebSocket connection appears to conflict with
+  // subsequent fetch() writes to the same host, causing inserts/updates to
+  // fail with "TypeError: Load failed" even though reads work fine. If
+  // re-enabling this fixes reads-but-not-writes and disabling it fixes
+  // writes, that confirms the cause -- ask Claude for the permanent fix
+  // once confirmed (e.g. polling instead of a persistent socket, or only
+  // subscribing after any pending write finishes).
   useEffect(() => {
+    return; // eslint-disable-line no-unreachable
+    // eslint-disable-next-line no-unreachable
     const channel = supabase
       .channel(`reservations-${dateKey}`)
       .on(
