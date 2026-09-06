@@ -29,6 +29,16 @@ function jsonResponse(data, status) {
   });
 }
 
+export async function GET(request) {
+  const { search } = new URL(request.url);
+  const result = await forward("GET", `reservations${search}`);
+  if (!result.ok) return jsonResponse({ error: result.text || `HTTP ${result.status}` }, result.status);
+  return new Response(result.text, {
+    status: 200,
+    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+  });
+}
+
 export async function POST(request) {
   const { rows } = await request.json();
   const result = await forward("POST", "reservations", rows);

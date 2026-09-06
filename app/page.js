@@ -161,16 +161,7 @@ export default function BiljartReserveringen() {
   const loadReservations = useCallback(async () => {
     setLoading(true);
     try {
-      const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-      // A cache-busting timestamp param avoids a stale cached GET response
-      // being reused. (Note: the fetch `cache: "no-store"` option was
-      // tried too but appears to itself trigger "Load failed" on some iOS
-      // Safari versions for cross-origin requests -- the timestamp alone
-      // is enough and doesn't have that problem.)
-      const res = await fetch(`${url}/rest/v1/reservations?date=eq.${dateKey}&select=*&_=${Date.now()}`, {
-        headers: { apikey: key, Authorization: `Bearer ${key}` },
-      });
+      const res = await fetch(`/api/reservations?date=eq.${dateKey}&select=*&_=${Date.now()}`);
       const data = res.ok ? await res.json() : [];
       const map = {};
       (data || []).forEach((row) => {
@@ -211,13 +202,10 @@ export default function BiljartReserveringen() {
   // block a second one. NIDM/KBBB bookings never count toward this.
   const refreshActiveReservation = useCallback(async () => {
     if (!deviceToken) return;
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     let data;
     try {
       const res = await fetch(
-        `${url}/rest/v1/reservations?owner_token=eq.${deviceToken}&competition=eq.mij&date=gte.${todayKey}&select=*&_=${Date.now()}`,
-        { headers: { apikey: key, Authorization: `Bearer ${key}` } }
+        `/api/reservations?owner_token=eq.${deviceToken}&competition=eq.mij&date=gte.${todayKey}&select=*&_=${Date.now()}`
       );
       data = res.ok ? await res.json() : [];
     } catch (err) {

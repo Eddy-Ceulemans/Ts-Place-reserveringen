@@ -94,11 +94,7 @@ export default function TestPage() {
               const now = new Date();
               const pad = (n) => n.toString().padStart(2, "0");
               const todayKey = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-              const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-              const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-              const res = await fetch(`${url}/rest/v1/reservations?date=eq.${todayKey}&select=*&_=${Date.now()}`, {
-                headers: { apikey: key, Authorization: `Bearer ${key}` },
-              });
+              const res = await fetch(`/api/reservations?date=eq.${todayKey}&select=*&_=${Date.now()}`);
               const text = await res.text();
               setResult(`Datum gezocht: ${todayKey}\nStatus: ${res.status}\n\n${text}`);
             } catch (err) {
@@ -108,7 +104,7 @@ export default function TestPage() {
           }}
           style={{ padding: 12, fontSize: 15 }}
         >
-          Test 5: toon ruwe data van vandaag
+          Test 5: toon ruwe data van vandaag (via eigen API-route)
         </button>
       </div>
       <p style={{ marginTop: 20, padding: 12, background: "#f0f0f0", borderRadius: 8, fontSize: 13, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
