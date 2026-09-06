@@ -30,7 +30,12 @@ function jsonResponse(data, status) {
 }
 
 export async function GET(request) {
-  const { search } = new URL(request.url);
+  const url = new URL(request.url);
+  // The "_" param is only there so the browser doesn't reuse a cached GET
+  // response -- PostgREST tries to parse every query param as a column
+  // filter, so it must never be forwarded on to Supabase.
+  url.searchParams.delete("_");
+  const search = url.search;
   const result = await forward("GET", `reservations${search}`);
   if (!result.ok) return jsonResponse({ error: result.text || `HTTP ${result.status}` }, result.status);
   return new Response(result.text, {
