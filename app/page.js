@@ -160,19 +160,28 @@ export default function BiljartReserveringen() {
   // Fetch the bookings for the currently viewed day.
   const loadReservations = useCallback(async () => {
     setLoading(true);
-    const { data, error: err } = await supabase
-      .from("reservations")
-      .select("*")
-      .eq("date", dateKey);
-    if (err) {
-      console.error(err);
-      setReservations({});
-    } else {
+    try {
+      const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      // cache: 'no-store' plus a cache-busting timestamp param: iOS Safari
+      // has been seen to reuse a stale cached response for an identical
+      // GET URL even when the underlying data has changed.
+      const res = await fetch(
+        `${url}/rest/v1/reservations?date=eq.${dateKey}&select=*&_=${Date.now()}`,
+        {
+          headers: { apikey: key, Authorization: `Bearer ${key}` },
+          cache: "no-store",
+        }
+      );
+      const data = res.ok ? await res.json() : [];
       const map = {};
       (data || []).forEach((row) => {
         map[`${row.table_id}|${row.slot}`] = row;
       });
       setReservations(map);
+    } catch (err) {
+      console.error(err);
+      setReservations({});
     }
     setLoading(false);
   }, [dateKey]);
@@ -204,13 +213,23 @@ export default function BiljartReserveringen() {
   // block a second one. NIDM/KBBB bookings never count toward this.
   const refreshActiveReservation = useCallback(async () => {
     if (!deviceToken) return;
-    const { data, error: err } = await supabase
-      .from("reservations")
-      .select("*")
-      .eq("owner_token", deviceToken)
-      .eq("competition", "mij")
-      .gte("date", todayKey);
-    if (err || !data || data.length === 0) {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    let data;
+    try {
+      const res = await fetch(
+        `${url}/rest/v1/reservations?owner_token=eq.${deviceToken}&competition=eq.mij&date=gte.${todayKey}&select=*&_=${Date.now()}`,
+        {
+          headers: { apikey: key, Authorization: `Bearer ${key}` },
+          cache: "no-store",
+        }
+      );
+      data = res.ok ? await res.json() : [];
+    } catch (err) {
+      console.error(err);
+      data = [];
+    }
+    if (!data || data.length === 0) {
       setActiveReservation(null);
       return;
     }
