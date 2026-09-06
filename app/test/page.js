@@ -96,10 +96,9 @@ export default function TestPage() {
               const todayKey = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
               const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
               const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-              const res = await fetch(
-                `${url}/rest/v1/reservations?date=eq.${todayKey}&select=*&_=${Date.now()}`,
-                { headers: { apikey: key, Authorization: `Bearer ${key}` }, cache: "no-store" }
-              );
+              const res = await fetch(`${url}/rest/v1/reservations?date=eq.${todayKey}&select=*&_=${Date.now()}`, {
+                headers: { apikey: key, Authorization: `Bearer ${key}` },
+              });
               const text = await res.text();
               setResult(`Datum gezocht: ${todayKey}\nStatus: ${res.status}\n\n${text}`);
             } catch (err) {

@@ -163,16 +163,14 @@ export default function BiljartReserveringen() {
     try {
       const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
       const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-      // cache: 'no-store' plus a cache-busting timestamp param: iOS Safari
-      // has been seen to reuse a stale cached response for an identical
-      // GET URL even when the underlying data has changed.
-      const res = await fetch(
-        `${url}/rest/v1/reservations?date=eq.${dateKey}&select=*&_=${Date.now()}`,
-        {
-          headers: { apikey: key, Authorization: `Bearer ${key}` },
-          cache: "no-store",
-        }
-      );
+      // A cache-busting timestamp param avoids a stale cached GET response
+      // being reused. (Note: the fetch `cache: "no-store"` option was
+      // tried too but appears to itself trigger "Load failed" on some iOS
+      // Safari versions for cross-origin requests -- the timestamp alone
+      // is enough and doesn't have that problem.)
+      const res = await fetch(`${url}/rest/v1/reservations?date=eq.${dateKey}&select=*&_=${Date.now()}`, {
+        headers: { apikey: key, Authorization: `Bearer ${key}` },
+      });
       const data = res.ok ? await res.json() : [];
       const map = {};
       (data || []).forEach((row) => {
@@ -219,10 +217,7 @@ export default function BiljartReserveringen() {
     try {
       const res = await fetch(
         `${url}/rest/v1/reservations?owner_token=eq.${deviceToken}&competition=eq.mij&date=gte.${todayKey}&select=*&_=${Date.now()}`,
-        {
-          headers: { apikey: key, Authorization: `Bearer ${key}` },
-          cache: "no-store",
-        }
+        { headers: { apikey: key, Authorization: `Bearer ${key}` } }
       );
       data = res.ok ? await res.json() : [];
     } catch (err) {
