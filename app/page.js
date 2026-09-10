@@ -56,7 +56,7 @@ const START_HOUR = 14;
 const END_HOUR = 24; // last slot starts at 23:00
 const DEFAULT_MAX_SELECT = 3;
 const COMPETITION_MAX_SELECT = 6;
-const OPEN_DAYS = 8; // today + 7 more days
+const OPEN_DAYS = 14; // today + 13 more days = 2 weeks
 const MODES = [
   { id: "mij", label: "Mij" },
   { id: "nidm", label: "NIDM" },
