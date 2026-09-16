@@ -1,0 +1,32 @@
+name: Keep Supabase awake
+
+# Supabase pauses free-tier projects after 7 days without any database
+# activity. This runs every 3 days and does one harmless read (fetches at
+# most 1 row's id), which resets that inactivity timer -- so the project
+# never gets close to the 7-day limit, even during a quiet week.
+#
+# One-time setup required (see README.md, section "Supabase actief houden"):
+# add two repository secrets under GitHub -> Settings -> Secrets and
+# variables -> Actions:
+#   SUPABASE_URL          (same value as NEXT_PUBLIC_SUPABASE_URL)
+#   SUPABASE_ANON_KEY      (same value as NEXT_PUBLIC_SUPABASE_ANON_KEY)
+
+on:
+  schedule:
+    - cron: "0 6 */3 * *" # every 3 days at 06:00 UTC
+  workflow_dispatch: {} # lets you also trigger it manually from the Actions tab
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase to reset the inactivity timer
+        run: |
+          status=$(curl -s -o /dev/null -w "%{http_code}" \
+            "${{ secrets.SUPABASE_URL }}/rest/v1/reservations?select=id&limit=1" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}")
+          echo "Supabase responded with status $status"
+          if [ "$status" -ge 400 ]; then
+            echo "::warning::Unexpected status from Supabase ping ($status) -- check the SUPABASE_URL/SUPABASE_ANON_KEY secrets."
+          fi
