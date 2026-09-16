@@ -583,7 +583,7 @@ export default function BiljartReserveringen() {
                             }}
                           />
                         </button>
-                        {booking && !past && (
+                        {booking && !past && booking.competition !== "tap" && booking.competition !== "columbianen" && (
                           <button
                             className="opponent-row"
                             onClick={() => openOpponentSlot(table.id, slot, booking)}
@@ -632,28 +632,32 @@ export default function BiljartReserveringen() {
               Reserveer
             </button>
           </div>
-          <div style={styles.opponentBookingRow}>
-            <input
-              style={styles.inputDark}
-              placeholder="Naam tegenstander (optioneel)"
-              value={opponentInput}
-              onChange={(e) => setOpponentInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && confirmReservation()}
-            />
-            <label style={styles.opponentCheckboxLabel}>
-              <input
-                type="checkbox"
-                checked={opponentLocked}
-                onChange={(e) => setOpponentLocked(e.target.checked)}
-              />
-              Vergrendelen
-            </label>
-          </div>
-          <div style={styles.opponentHint}>
-            {opponentLocked
-              ? "Vergrendeld: enkel jij kan dit later nog aanpassen. Leeg = je speelt alleen."
-              : "Niet vergrendeld: eender wie kan later zelf zijn naam als tegenstander invullen."}
-          </div>
+          {competition !== "tap" && competition !== "columbianen" && (
+            <>
+              <div style={styles.opponentBookingRow}>
+                <input
+                  style={styles.inputDark}
+                  placeholder="Naam tegenstander (optioneel)"
+                  value={opponentInput}
+                  onChange={(e) => setOpponentInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && confirmReservation()}
+                />
+                <label style={styles.opponentCheckboxLabel}>
+                  <input
+                    type="checkbox"
+                    checked={opponentLocked}
+                    onChange={(e) => setOpponentLocked(e.target.checked)}
+                  />
+                  Vergrendelen
+                </label>
+              </div>
+              <div style={styles.opponentHint}>
+                {opponentLocked
+                  ? "Vergrendeld: enkel jij kan dit later nog aanpassen. Leeg = je speelt alleen."
+                  : "Niet vergrendeld: eender wie kan later zelf zijn naam als tegenstander invullen."}
+              </div>
+            </>
+          )}
           {error && <div style={styles.errorTextLight}>{error}</div>}
         </div>
       )}
