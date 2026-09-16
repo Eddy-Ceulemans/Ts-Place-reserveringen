@@ -149,6 +149,7 @@ export default function BiljartReserveringen() {
   const [nameInput, setNameInput] = useState("");
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
   const [activeReservation, setActiveReservation] = useState(null); // {dateKey, tableId, slots, endsAt}
   const [opponentInput, setOpponentInput] = useState(""); // at booking time
   const [opponentLocked, setOpponentLocked] = useState(false); // at booking time
@@ -253,6 +254,13 @@ export default function BiljartReserveringen() {
     const t = setTimeout(() => setToast(""), 8000);
     return () => clearTimeout(t);
   }, [toast]);
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    await Promise.all([loadReservations(), refreshActiveReservation()]);
+    setRefreshing(false);
+    setToast("Vernieuwd");
+  }
 
   function toggleCompetition(id) {
     setCompetition(id);
@@ -462,6 +470,15 @@ export default function BiljartReserveringen() {
       <div style={styles.railTop} />
       <div style={styles.wrap}>
         <header style={styles.header}>
+          <button
+            className="refresh-btn"
+            style={styles.refreshBtn}
+            onClick={handleRefresh}
+            disabled={refreshing}
+            aria-label="Vernieuwen"
+          >
+            <span style={{ display: "inline-block", ...(refreshing ? styles.refreshSpin : {}) }}>⟳</span> Vernieuwen
+          </button>
           <h1 style={styles.title}>Café T&apos;s Place - PDB</h1>
           <div style={styles.subtitleEyebrow}>Biljartreserveringen</div>
           <p style={styles.subtitle}>Kies tot {maxSelectHours} uur (in stappen van 30 min) op één tafel en zet daarna je naam erop.</p>
@@ -773,6 +790,10 @@ export default function BiljartReserveringen() {
 }
 
 const responsiveCss = `
+@keyframes tsplace-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
 .tables-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -791,6 +812,7 @@ const responsiveCss = `
   .felt-table .slot-dot { width: 10px !important; height: 10px !important; }
   .felt-table .opponent-row { padding: 4px 8px 4px 20px !important; font-size: 10.5px !important; }
   .mode-pill { padding: 6px 13px !important; font-size: 12px !important; }
+  .refresh-btn { position: static !important; margin-bottom: 10px; }
 }
 @media (max-width: 480px) {
   .tables-grid { gap: 7px; }
@@ -814,7 +836,26 @@ const styles = {
     background: "linear-gradient(90deg, #C9A227, #e4c766, #C9A227)",
   },
   wrap: { maxWidth: 880, margin: "0 auto", padding: "36px 20px 0" },
-  header: { marginBottom: 20 },
+  header: { marginBottom: 20, position: "relative" },
+  refreshBtn: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    padding: "7px 14px",
+    borderRadius: 20,
+    border: "1.5px solid rgba(18,41,59,0.25)",
+    background: "rgba(255,255,255,0.5)",
+    color: "#12293b",
+    fontSize: 12.5,
+    fontWeight: 600,
+    cursor: "pointer",
+  },
+  refreshSpin: {
+    animation: "tsplace-spin 0.8s linear infinite",
+  },
   title: {
     fontFamily: "'Fraunces', serif",
     fontWeight: 700,
