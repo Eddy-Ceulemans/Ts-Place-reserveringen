@@ -62,6 +62,8 @@ const MODES = [
   { id: "mij", label: "Mij" },
   { id: "nidm", label: "NIDM" },
   { id: "kbbb", label: "KBBB" },
+  { id: "tap", label: "TAP" },
+  { id: "columbianen", label: "Columbianen" },
 ];
 const DEVICE_TOKEN_KEY = "tsplace-device-token";
 
@@ -282,6 +284,8 @@ export default function BiljartReserveringen() {
     return activeReservation && activeReservation.endsAt > new Date();
   }
 
+  const AUTO_NAME_MODES = { tap: "TAP", columbianen: "Columbianen" };
+
   function toggleSlot(tableId, slot) {
     if (isPastSlot(slot)) return;
     const key = `${tableId}|${slot}`;
@@ -297,16 +301,19 @@ export default function BiljartReserveringen() {
       return;
     }
     setError("");
-    setSelection((prev) => {
-      const exists = prev.some((s) => s.tableId === tableId && s.slot === slot);
-      if (exists) {
-        return prev.filter((s) => !(s.tableId === tableId && s.slot === slot));
-      }
-      const sameTable = prev.filter((s) => s.tableId === tableId);
-      if (sameTable.length >= maxSelect) return prev;
-      const base = prev.length && prev[0].tableId !== tableId ? [] : prev;
-      return [...base, { tableId, slot }];
-    });
+    const exists = selection.some((s) => s.tableId === tableId && s.slot === slot);
+    if (exists) {
+      setSelection((prev) => prev.filter((s) => !(s.tableId === tableId && s.slot === slot)));
+      return;
+    }
+    const sameTable = selection.filter((s) => s.tableId === tableId);
+    if (sameTable.length >= maxSelect) return;
+    const base = selection.length && selection[0].tableId !== tableId ? [] : selection;
+    const isFreshSelection = base.length === 0;
+    setSelection([...base, { tableId, slot }]);
+    if (isFreshSelection && AUTO_NAME_MODES[competition]) {
+      setNameInput(AUTO_NAME_MODES[competition]);
+    }
   }
 
   function clearSelection() {
@@ -466,6 +473,7 @@ export default function BiljartReserveringen() {
             return (
               <button
                 key={m.id}
+                className="mode-pill"
                 onClick={() => toggleCompetition(m.id)}
                 style={{ ...styles.competitionPill, ...(active ? styles.competitionPillActive : {}) }}
               >
@@ -778,6 +786,7 @@ const responsiveCss = `
   .felt-table .slot-status { font-size: 10.5px !important; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .felt-table .slot-dot { width: 10px !important; height: 10px !important; }
   .felt-table .opponent-row { padding: 4px 8px 4px 20px !important; font-size: 10.5px !important; }
+  .mode-pill { padding: 6px 13px !important; font-size: 12px !important; }
 }
 @media (max-width: 480px) {
   .tables-grid { gap: 7px; }
@@ -865,6 +874,7 @@ const styles = {
     justifyContent: "center",
     gap: 10,
     marginBottom: 10,
+    flexWrap: "wrap",
   },
   competitionPill: {
     padding: "8px 20px",
