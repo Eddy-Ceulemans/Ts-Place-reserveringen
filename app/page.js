@@ -53,9 +53,10 @@ const TABLES = [
 ];
 
 const START_HOUR = 14;
-const END_HOUR = 24; // last slot starts at 23:00
-const DEFAULT_MAX_SELECT = 3;
-const COMPETITION_MAX_SELECT = 6;
+const END_HOUR = 24; // last slot is 23:30
+const SLOT_MINUTES = 30;
+const DEFAULT_MAX_SELECT = 5; // 5 x 30min = 2,5 uur
+const COMPETITION_MAX_SELECT = 12; // 12 x 30min = 6 uur
 const OPEN_DAYS = 14; // today + 13 more days = 2 weeks
 const MODES = [
   { id: "mij", label: "Mij" },
@@ -80,11 +81,17 @@ function buildSlots() {
   const slots = [];
   for (let h = START_HOUR; h < END_HOUR; h++) {
     slots.push(`${pad(h)}:00`);
+    slots.push(`${pad(h)}:30`);
   }
   return slots;
 }
 
 const SLOTS = buildSlots();
+
+function slotToMinutes(slot) {
+  const [h, m] = slot.split(":").map(Number);
+  return h * 60 + m;
+}
 
 function startOfDay(d) {
   const n = new Date(d);
@@ -97,11 +104,11 @@ function parseDateKey(key) {
   return new Date(y, m - 1, d);
 }
 
-// End time = one hour after the latest booked slot on that date.
+// End time = SLOT_MINUTES after the latest booked slot on that date.
 function computeEndsAt(dateKeyStr, slots) {
-  const lastHour = Math.max(...slots.map((s) => parseInt(s.split(":")[0], 10)));
+  const lastMinutes = Math.max(...slots.map(slotToMinutes)) + SLOT_MINUTES;
   const d = parseDateKey(dateKeyStr);
-  d.setHours(lastHour + 1, 0, 0, 0);
+  d.setHours(0, lastMinutes, 0, 0);
   return d;
 }
 
@@ -148,6 +155,7 @@ export default function BiljartReserveringen() {
   const [opponentEditLocked, setOpponentEditLocked] = useState(false);
 
   const maxSelect = competition === "mij" ? DEFAULT_MAX_SELECT : COMPETITION_MAX_SELECT;
+  const maxSelectHours = (maxSelect * SLOT_MINUTES) / 60;
   const isPersonalMode = competition === "mij";
   const dateKey = toDateKey(selectedDate);
   const atMin = dateKey === todayKey;
@@ -262,8 +270,8 @@ export default function BiljartReserveringen() {
   function isPastSlot(slot) {
     if (!isToday()) return false;
     const now = new Date();
-    const [h] = slot.split(":").map(Number);
-    return h <= now.getHours();
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    return slotToMinutes(slot) + SLOT_MINUTES <= nowMinutes;
   }
 
   function isSelected(tableId, slot) {
@@ -449,7 +457,7 @@ export default function BiljartReserveringen() {
         <header style={styles.header}>
           <h1 style={styles.title}>Café T&apos;s Place - PDB</h1>
           <div style={styles.subtitleEyebrow}>Biljartreserveringen</div>
-          <p style={styles.subtitle}>Kies tot {maxSelect} vrije uren op één tafel en zet daarna je naam erop.</p>
+          <p style={styles.subtitle}>Kies tot {maxSelectHours} uur (in stappen van 30 min) op één tafel en zet daarna je naam erop.</p>
         </header>
 
         <div style={styles.competitionRow}>
@@ -468,8 +476,8 @@ export default function BiljartReserveringen() {
         </div>
         <div style={styles.competitionNote}>
           {isPersonalMode
-            ? `Mij geselecteerd — max ${DEFAULT_MAX_SELECT} uur, en pas een nieuwe reservering na afloop van je vorige.`
-            : `${MODES.find((m) => m.id === competition)?.label} geselecteerd — tot ${COMPETITION_MAX_SELECT} uur tegelijk, geen blokkade.`}
+            ? `Mij geselecteerd — max ${maxSelectHours} uur, en pas een nieuwe reservering na afloop van je vorige.`
+            : `${MODES.find((m) => m.id === competition)?.label} geselecteerd — tot ${maxSelectHours} uur tegelijk, geen blokkade.`}
         </div>
 
         {isPersonalMode && isActiveReservationOngoing() && (
@@ -598,7 +606,7 @@ export default function BiljartReserveringen() {
           <div style={styles.selectionTop}>
             <span style={styles.selectionText}>
               {TABLES.find((t) => t.id === selectedTableId)?.label} ·{" "}
-              {selection.map((s) => s.slot).sort().join(", ")}
+              {selection.map((s) => s.slot).sort().join(", ")} ({(selection.length * SLOT_MINUTES) / 60} uur)
             </span>
             <button style={styles.ghostBtnDark} onClick={clearSelection}>
               Wissen
