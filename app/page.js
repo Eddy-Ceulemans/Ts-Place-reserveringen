@@ -63,7 +63,7 @@ const MODES = [
   { id: "nidm", label: "NIDM" },
   { id: "kbbb", label: "KBBB" },
   { id: "tap", label: "TAP" },
-  { id: "columbianen", label: "Columbianen" },
+  { id: "colombianen", label: "Colombianen" },
 ];
 const DEVICE_TOKEN_KEY = "tsplace-device-token";
 
@@ -292,7 +292,7 @@ export default function BiljartReserveringen() {
     return activeReservation && activeReservation.endsAt > new Date();
   }
 
-  const AUTO_NAME_MODES = { tap: "TAP", columbianen: "Columbianen" };
+  const AUTO_NAME_MODES = { tap: "TAP", colombianen: "Colombianen" };
 
   function toggleSlot(tableId, slot) {
     if (isPastSlot(slot)) return;
@@ -600,7 +600,7 @@ export default function BiljartReserveringen() {
                             }}
                           />
                         </button>
-                        {booking && !past && booking.competition !== "tap" && booking.competition !== "columbianen" && (
+                        {booking && !past && booking.competition !== "tap" && booking.competition !== "colombianen" && (
                           <button
                             className="opponent-row"
                             onClick={() => openOpponentSlot(table.id, slot, booking)}
@@ -649,7 +649,7 @@ export default function BiljartReserveringen() {
               Reserveer
             </button>
           </div>
-          {competition !== "tap" && competition !== "columbianen" && (
+          {competition !== "tap" && competition !== "colombianen" && (
             <>
               <div style={styles.opponentBookingRow}>
                 <input
