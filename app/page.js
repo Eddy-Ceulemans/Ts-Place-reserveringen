@@ -264,6 +264,8 @@ export default function BiljartReserveringen() {
 
   function toggleCompetition(id) {
     setCompetition(id);
+    setSelection([]);
+    setError("");
   }
 
   function shiftDay(delta) {
@@ -294,6 +296,31 @@ export default function BiljartReserveringen() {
 
   const AUTO_NAME_MODES = { tap: "TAP", colombianen: "Colombianen" };
 
+  // At NIDM, both tables are always booked together for the same hour (one
+  // match plays out on both tables at once), so picking an hour on either
+  // table automatically selects that same hour on both -- and later,
+  // confirming fills in the same name/opponent for both bookings, so
+  // nothing needs to be typed twice.
+  function toggleSlotMirrored(tableId, slot) {
+    const otherId = tableId === "wit" ? "zwart" : "wit";
+    const alreadySelected = selection.some((s) => s.slot === slot);
+    if (alreadySelected) {
+      setSelection((prev) => prev.filter((s) => s.slot !== slot));
+      return;
+    }
+    const otherKey = `${otherId}|${slot}`;
+    if (reservations[otherKey]) {
+      setToast(
+        `Bij NIDM moeten beide tafels vrij zijn — ${TABLES.find((t) => t.id === otherId)?.label} is om ${slot} al bezet.`
+      );
+      return;
+    }
+    const distinctCount = new Set(selection.map((s) => s.slot)).size;
+    if (distinctCount >= maxSelect) return;
+    setError("");
+    setSelection((prev) => [...prev, { tableId: "wit", slot }, { tableId: "zwart", slot }]);
+  }
+
   function toggleSlot(tableId, slot) {
     if (isPastSlot(slot)) return;
     const key = `${tableId}|${slot}`;
@@ -306,6 +333,10 @@ export default function BiljartReserveringen() {
       setToast(
         `Nog een lopende reservering — nieuw kan pas vanaf ${pad(until.getHours())}:${pad(until.getMinutes())}.`
       );
+      return;
+    }
+    if (competition === "nidm") {
+      toggleSlotMirrored(tableId, slot);
       return;
     }
     setError("");
@@ -378,7 +409,8 @@ export default function BiljartReserveringen() {
     setOpponentInput("");
     setOpponentLocked(false);
     setError("");
-    setToast(selection.length > 1 ? "Uren gereserveerd" : "Gereserveerd");
+    const distinctSlotCount = new Set(selection.map((s) => s.slot)).size;
+    setToast(distinctSlotCount > 1 ? "Uren gereserveerd" : "Gereserveerd");
     loadReservations();
     refreshActiveReservation();
   }
@@ -561,7 +593,8 @@ export default function BiljartReserveringen() {
                     const booking = reservations[key];
                     const past = isPastSlot(slot);
                     const selected = isSelected(table.id, slot);
-                    const disableAsFull = !booking && !selected && selectedTableId && selectedTableId !== table.id;
+                    const disableAsFull =
+                      competition !== "nidm" && !booking && !selected && selectedTableId && selectedTableId !== table.id;
                     const blockedByActive = !booking && !selected && isPersonalMode && isActiveReservationOngoing();
                     const disabled = past || disableAsFull || blockedByActive;
                     return (
@@ -630,8 +663,11 @@ export default function BiljartReserveringen() {
         <div style={styles.selectionBar}>
           <div style={styles.selectionTop}>
             <span style={styles.selectionText}>
-              {TABLES.find((t) => t.id === selectedTableId)?.label} ·{" "}
-              {selection.map((s) => s.slot).sort().join(", ")} ({(selection.length * SLOT_MINUTES) / 60} uur)
+              {competition === "nidm" ? "Wit + Zwart" : TABLES.find((t) => t.id === selectedTableId)?.label} ·{" "}
+              {Array.from(new Set(selection.map((s) => s.slot)))
+                .sort()
+                .join(", ")}{" "}
+              ({(new Set(selection.map((s) => s.slot)).size * SLOT_MINUTES) / 60} uur)
             </span>
             <button style={styles.ghostBtnDark} onClick={clearSelection}>
               Wissen
