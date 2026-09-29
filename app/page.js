@@ -444,6 +444,21 @@ export default function BiljartReserveringen() {
     return !!row && !row.opponent_locked && !row.opponent_name;
   }
 
+  // All half-hour rows that belong to the same reservation (same table,
+  // same date -- implied since `reservations` only holds the viewed day --
+  // same reserver and same name). Opponent changes apply to this whole
+  // group at once, so someone joining as opponent (or the reserver
+  // managing it) only has to fill in the name once, not per half hour.
+  function getOpponentGroupRows(row) {
+    const sameTableOnly = row.competition !== "nidm"; // NIDM mirrors both tables for one match
+    return Object.values(reservations).filter(
+      (r) =>
+        (sameTableOnly ? r.table_id === row.table_id : true) &&
+        r.owner_token === row.owner_token &&
+        r.name === row.name
+    );
+  }
+
   function openOpponentSlot(tableId, slot, row) {
     if (!row) return;
     const owner = isOpponentOwner(row);
@@ -468,23 +483,25 @@ export default function BiljartReserveringen() {
       setToast("Vul een naam in.");
       return;
     }
+    const groupIds = getOpponentGroupRows(row).map((r) => r.id);
     setOpponentTarget(null);
     try {
-      await apiUpdate(row.id, patch);
+      await Promise.all(groupIds.map((id) => apiUpdate(id, patch)));
     } catch (err) {
       console.error(err);
       setToast(`Opslaan tegenstander mislukt: ${err.message || "onbekende fout"}`);
       return;
     }
-    setToast("Tegenstander bijgewerkt");
+    setToast(groupIds.length > 1 ? "Tegenstander bijgewerkt voor alle halve uren" : "Tegenstander bijgewerkt");
     loadReservations();
   }
 
   async function clearOpponent() {
     const { row } = opponentTarget;
+    const groupIds = getOpponentGroupRows(row).map((r) => r.id);
     setOpponentTarget(null);
     try {
-      await apiUpdate(row.id, { opponent_name: null, opponent_locked: false });
+      await Promise.all(groupIds.map((id) => apiUpdate(id, { opponent_name: null, opponent_locked: false })));
     } catch (err) {
       console.error(err);
       setToast(`Wissen mislukt: ${err.message || "onbekende fout"}`);
