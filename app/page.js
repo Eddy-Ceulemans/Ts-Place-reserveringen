@@ -732,26 +732,36 @@ export default function BiljartReserveringen() {
         </div>
       )}
 
-      {cancelTarget && (
-        <div style={styles.overlay} onClick={() => setCancelTarget(null)}>
-          <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
-            <div style={styles.modalEyebrow}>
-              {TABLES.find((t) => t.id === cancelTarget.tableId).label} · {cancelTarget.slot}
-            </div>
-            <h2 style={styles.modalTitle}>
-              Gereserveerd door {reservations[`${cancelTarget.tableId}|${cancelTarget.slot}`]?.name}
-            </h2>
-            <div style={styles.modalActions}>
-              <button style={styles.ghostBtn} onClick={() => setCancelTarget(null)}>
-                Sluiten
-              </button>
-              <button style={styles.dangerBtn} onClick={cancelReservation}>
-                Annuleer reservering
-              </button>
+      {cancelTarget && (() => {
+        const cancelRow = reservations[`${cancelTarget.tableId}|${cancelTarget.slot}`];
+        const canCancel = !!(cancelRow && deviceToken && cancelRow.owner_token === deviceToken);
+        return (
+          <div style={styles.overlay} onClick={() => setCancelTarget(null)}>
+            <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
+              <div style={styles.modalEyebrow}>
+                {TABLES.find((t) => t.id === cancelTarget.tableId).label} · {cancelTarget.slot}
+              </div>
+              <h2 style={styles.modalTitle}>Gereserveerd door {cancelRow?.name}</h2>
+              {!canCancel && (
+                <p style={styles.readOnlyNote}>
+                  Enkel wie deze reservering maakte kan ze annuleren, en dat enkel vanop het toestel waarmee ze
+                  gemaakt werd.
+                </p>
+              )}
+              <div style={styles.modalActions}>
+                <button style={styles.ghostBtn} onClick={() => setCancelTarget(null)}>
+                  Sluiten
+                </button>
+                {canCancel && (
+                  <button style={styles.dangerBtn} onClick={cancelReservation}>
+                    Annuleer reservering
+                  </button>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {opponentTarget && (
         <div style={styles.overlay} onClick={() => setOpponentTarget(null)}>
